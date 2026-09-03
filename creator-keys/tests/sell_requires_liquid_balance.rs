@@ -42,6 +42,11 @@ fn test_sell_reverts_when_attempting_to_use_staked_keys() {
     assert_eq!(client.get_liquid_balance(&creator, &holder), 4);
 
     // Sell 4 liquid keys successfully
+    // Advance once before the loop; sells don't reset last_buy_ledger so
+    // sequence stays ahead of it for all iterations.
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     for _ in 0..4 {
         let result = client.try_sell_key(&creator, &holder, &None);
         assert!(
@@ -305,6 +310,9 @@ fn test_stake_all_then_unstake_all() {
     client.stake_keys(&creator, &holder, &7);
     assert_eq!(client.get_liquid_balance(&creator, &holder), 0);
 
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     let result = client.try_sell_key(&creator, &holder, &None);
     assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
 
