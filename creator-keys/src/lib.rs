@@ -133,6 +133,30 @@ pub enum StakingError {
     FlashLoanDetected = 58,
 }
 
+/// Errors raised by co-creator and auction lifecycle entrypoints.
+///
+/// Kept separate from [`ContractError`] because that enum is already at the
+/// Soroban 50-variant cap.
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum FeatureError {
+    /// The `caller` is not the `creator` owning the key.
+    Unauthorized = 1,
+    /// `remove_co_creator` was called but no co-creator is configured.
+    NoCoCreatorSet = 2,
+    /// The creator is not registered.
+    NotRegistered = 3,
+    /// An auction is already in progress (supply > 0) and cannot be configured or cancelled.
+    AuctionAlreadyStarted = 4,
+    /// A price or quantity was zero when a positive value was required.
+    NotPositiveAmount = 5,
+    /// The auction supply was outside the valid range (1..=10_000).
+    InvalidAuctionConfig = 6,
+    /// `cancel_auction` or `buy_key` (auction path) but no auction is configured.
+    NoAuctionConfigured = 7,
+}
+
 pub mod fee {
     use crate::ContractError;
 
@@ -3155,7 +3179,7 @@ impl CreatorKeysContract {
             seller: seller.clone(),
             creator_id: creator.clone(),
             quantity: 1,
-            proceeds,
+            proceeds: final_proceeds,
             new_supply: profile.supply,
             ledger: env.ledger().sequence(),
         };
@@ -3993,6 +4017,134 @@ impl CreatorKeysContract {
         );
 
         Ok(())
+    }
+
+    /// Removes the co-creator split for a registered creator (issue #791).
+    ///
+    /// After removal the full creator fee goes to `creator` on future trades.
+    /// The co-creator's existing fee balance is preserved (they can still
+    /// withdraw it).
+    ///
+    /// # Errors
+    /// - [`FeatureError::Unauthorized`] if `caller` is not `creator`.
+    /// - [`FeatureError::NoCoCreatorSet`] if no co-creator is configured.
+    pub fn remove_co_creator(
+        env: Env,
+        creator: Address,
+        caller: Address,
+    ) -> Result<(), FeatureError> {
+        caller.require_auth();
+        if caller != creator {
+            return Err(FeatureError::Unauthorized);
+        }
+        let key = constants::storage::co_creator(&creator);
+        let config: Option<CoCreatorConfig> = env.storage().persistent().get(&key);
+        let Some(config) = config else {
+            return Err(FeatureError::NoCoCreatorSet);
+        };
+        let removed_address = config.address.clone();
+        env.storage().persistent().remove(&key);
+        env.events().publish(
+            events::co_creator_removed_topics(&creator, &removed_address),
+            events::CoCreatorRemovedEvent {
+                creator_id: creator,
+                co_creator: removed_address,
+            },
+        );
+        Ok(())
+    }
+
+    /// Configures a pre-launch fixed-price auction for a creator's key (issue #787).
+    ///
+    /// Must be called before any key has been sold (supply == 0).
+    /// During the auction phase `buy_key` will settle at `auction_price` instead of
+    /// the bonding-curve price until `auction_supply` keys have been sold.
+    ///
+    /// # Errors
+    /// - [`FeatureError::Unauthorized`] if `caller != creator`.
+    /// - [`FeatureError::NotRegistered`] if the creator has no profile.
+    /// - [`FeatureError::AuctionAlreadyStarted`] if supply > 0.
+    /// - [`FeatureError::NotPositiveAmount`] if `auction_price <= 0`.
+    /// - [`FeatureError::InvalidAuctionConfig`] if `auction_supply` is 0 or > 10 000.
+    pub fn configure_auction(
+        env: Env,
+        creator: Address,
+        caller: Address,
+        auction_price: i128,
+        auction_supply: u32,
+    ) -> Result<(), FeatureError> {
+        caller.require_auth();
+        if caller != creator {
+            return Err(FeatureError::Unauthorized);
+        }
+        let profile: CreatorProfile = env
+            .storage()
+            .persistent()
+            .get(&constants::storage::creator(&creator))
+            .ok_or(FeatureError::NotRegistered)?;
+        if profile.supply > 0 {
+            return Err(FeatureError::AuctionAlreadyStarted);
+        }
+        if auction_price <= 0 {
+            return Err(FeatureError::NotPositiveAmount);
+        }
+        if auction_supply == 0 || auction_supply > 10_000 {
+            return Err(FeatureError::InvalidAuctionConfig);
+        }
+        let config = AuctionConfig {
+            auction_price,
+            auction_supply,
+            auction_sold: 0,
+        };
+        let key = constants::storage::auction_config(&creator);
+        env.storage().persistent().set(&key, &config);
+        extend_key_ttl_to_full_window(&env, &key);
+        env.events().publish(
+            events::auction_configured_topics(&creator),
+            events::AuctionConfiguredEvent {
+                creator_id: creator,
+                auction_price,
+                auction_supply,
+            },
+        );
+        Ok(())
+    }
+
+    /// Cancels a pre-launch auction before any key has been purchased (issue #790).
+    ///
+    /// # Errors
+    /// - [`FeatureError::Unauthorized`] if `caller != creator`.
+    /// - [`FeatureError::NoAuctionConfigured`] if no auction exists.
+    /// - [`FeatureError::AuctionAlreadyStarted`] if at least one key has been sold.
+    pub fn cancel_auction(env: Env, creator: Address, caller: Address) -> Result<(), FeatureError> {
+        caller.require_auth();
+        if caller != creator {
+            return Err(FeatureError::Unauthorized);
+        }
+        let key = constants::storage::auction_config(&creator);
+        let config: AuctionConfig = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(FeatureError::NoAuctionConfigured)?;
+        if config.auction_sold > 0 {
+            return Err(FeatureError::AuctionAlreadyStarted);
+        }
+        env.storage().persistent().remove(&key);
+        env.events().publish(
+            events::auction_cancelled_topics(&creator),
+            events::AuctionCancelledEvent {
+                creator_id: creator,
+            },
+        );
+        Ok(())
+    }
+
+    /// Read-only view: returns the current auction configuration for a creator, if any.
+    pub fn get_auction_config(env: Env, creator: Address) -> Option<AuctionConfig> {
+        env.storage()
+            .persistent()
+            .get(&constants::storage::auction_config(&creator))
     }
 
     /// Stores on-chain identity metadata (name, bio, avatar URI) for a

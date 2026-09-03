@@ -142,6 +142,9 @@ fn repeated_sells_reset_the_ttl_window_rather_than_accumulate() {
         "precondition: advancing the ledger should have consumed TTL"
     );
 
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     client.sell_key(&creator, &holder, &None);
     let ttl_after_second = creator_ttl_remaining(&env, &contract_id, &creator);
 
