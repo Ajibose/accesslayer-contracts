@@ -94,6 +94,9 @@ fn test_supply_alternating_buys_and_sells() {
     env.ledger().set(l);
     client.sell_key(&creator, &buyer, &None);
     client.buy_key(&creator, &buyer, &100, &None);
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     client.sell_key(&creator, &buyer, &None);
 
     assert_eq!(client.get_total_key_supply(&creator), 0);

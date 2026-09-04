@@ -86,6 +86,9 @@ fn test_sell_slippage_reverts_when_proceeds_below_min_proceeds() {
     let sell_quote = client.get_sell_quote(&creator, &holder);
 
     let before = capture_snapshot(&client, &creator, &holder);
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     let result = client.try_sell_key(&creator, &holder, &Some(sell_quote.total_amount + 1));
     let after = capture_snapshot(&client, &creator, &holder);
 

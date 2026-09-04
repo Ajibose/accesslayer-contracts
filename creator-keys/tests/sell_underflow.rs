@@ -108,6 +108,9 @@ fn test_sell_after_buy_succeeds_without_underflow_error() {
     let seller = Address::generate(&env);
 
     client.buy_key(&creator, &seller, &100, &None);
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     let result = client.try_sell_key(&creator, &seller, &None);
 
     assert!(result.is_ok(), "expected Ok but got {:?}", result);

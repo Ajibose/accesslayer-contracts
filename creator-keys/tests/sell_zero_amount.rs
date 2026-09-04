@@ -189,6 +189,9 @@ fn test_sell_zero_liquid_keys_when_all_staked_reverts_and_emits_no_event() {
     env.events().all();
 
     // Holder attempts to sell when liquid balance is 0
+    let mut l = env.ledger().get();
+    l.sequence_number += 1;
+    env.ledger().set(l);
     let result = client.try_sell_key(&creator, &holder, &None);
     assert_eq!(
         result,
