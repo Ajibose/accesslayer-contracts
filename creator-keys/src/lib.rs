@@ -4034,13 +4034,12 @@ fn compute_trade_fee(env: &Env, key_id: &Address, amount: i128) -> Result<i128, 
         .get::<_, Address>(&FeatureKey::ActiveDiscountWallet)
         .map(|wallet| get_fee_discount_for_wallet(env, &wallet))
         .unwrap_or(0);
+    let fee_bps = dynamic_fees::current_fee_bps(env, key_id)?;
     let discounted_bps = fee_bps
         .checked_mul(fee::BPS_MAX.saturating_sub(discount_bps))
         .ok_or(ContractError::Overflow)?
         / fee::BPS_MAX;
     fee::apply_percentage_fee(amount, discounted_bps).ok_or(ContractError::Overflow)
-    let fee_bps = dynamic_fees::current_fee_bps(env, key_id)?;
-    fee::apply_percentage_fee(amount, fee_bps).ok_or(ContractError::Overflow)
 }
 
 /// Deducts the protocol trade fee from `amount`, credits it to the protocol
