@@ -151,17 +151,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "autocfg"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
-
-[[package]]
-name = "badge-contract"
+name = "auto-invest-registry"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
 ]
+
+[[package]]
+name = "autocfg"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "base16ct"
@@ -243,6 +243,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit-breaker"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -278,6 +285,7 @@ dependencies = [
 name = "creator-keys"
 version = "0.1.0"
 dependencies = [
+ "circuit-breaker",
  "ed25519-dalek",
  "soroban-sdk",
 ]
@@ -792,6 +800,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "key-analytics"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "key-liquidity-depth"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "key-staking-contract"
 version = "0.1.0"
 dependencies = [
@@ -1088,6 +1110,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "seasonal-rewards"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "sec1"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1178,6 +1207,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "session-nonce"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]
@@ -1563,13 +1599,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "vesting-contract"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
 
 [[package]]
 name = "wasi"
